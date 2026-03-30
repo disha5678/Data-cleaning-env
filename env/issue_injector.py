@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 def inject_issues(df):
     dirty = df.copy()
@@ -10,7 +11,7 @@ def inject_issues(df):
     manifest["nulls"] = idx.tolist()
 
     # duplicates
-    dirty = dirty.append(dirty.iloc[:3], ignore_index=True)
+    dirty = pd.concat([dirty, dirty.iloc[:3]], ignore_index=True)
     manifest["duplicates"] = list(range(len(df), len(df)+3))
 
     # type issue
