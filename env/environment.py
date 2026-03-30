@@ -1,6 +1,6 @@
 from env.data_generator import generate_clean_dataset
 from env.issue_injector import inject_issues
-# from env.actions import remove_nulls, convert_types, deduplicate
+from env.actions import remove_nulls, convert_types, deduplicate
 class DataCleaningEnv:
 
     def __init__(self):
@@ -18,8 +18,8 @@ class DataCleaningEnv:
 
     def step(self, action):
         self.steps += 1
-        # if action["type"] == "remove_nulls":
-        # self.dirty_df = remove_nulls(self.dirty_df, action["column"])
+        if action["type"] == "remove_nulls":
+            self.dirty_df = remove_nulls(self.dirty_df, action["column"])
         
         return self.dirty_df, 0, False, {}
 
