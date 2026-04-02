@@ -1,6 +1,7 @@
 from env.data_generator import generate_clean_dataset
 from env.issue_injector import inject_issues
-from env.actions import remove_nulls, convert_types, deduplicate
+from env.actions import remove_nulls, convert_types, deduplicate, trim_whitespace
+from env.graders.task1_grader import grade_task1
 class DataCleaningEnv:
 
     def __init__(self):
@@ -20,25 +21,38 @@ class DataCleaningEnv:
         self.inspected_cols = set()
 
         return {
-            "dataset": self.dirty_df,
-            "shape": self.dirty_df.shape
+            "dataset": self.dirty_df.to_dict(),
+            "shape": self.dirty_df.shape,
+            "steps": self.steps
         }
 
     def step(self, action):
         self.steps += 1
         reward = 0
+        action_type = action.get("type")
 
-        # placeholder (integration later)
-        if action["type"] == "inspect_column":
-            col = action["column"]
-            if col not in self.inspected_cols:
-                self.inspected_cols.add(col)
-                reward += 0.01
-            else:
-                reward -= 0.02
+        if action_type == "remove_nulls":
+            self.dirty_df = remove_nulls(self.dirty_df, action["column"])
+            reward += 0.1
 
+        elif action_type == "convert_types":
+            self.dirty_df = convert_types(self.dirty_df, action["column"])
+            reward += 0.1
+
+        elif action_type == "deduplicate":
+            self.dirty_df = deduplicate(self.dirty_df)
+            reward += 0.1
+
+        elif action_type == "trim_whitespace":
+            self.dirty_df = trim_whitespace(self.dirty_df, action["column"])
+            reward += 0.1
+
+        else:
+            reward -= 0.05
         return {
-            "dataset": self.dirty_df
+            "dataset": self.dirty_df.to_dict(),
+            "shape": self.dirty_df.shape,
+            "steps": self.steps
         }, reward, self.done, {}
 
     def state(self):
@@ -51,9 +65,10 @@ class DataCleaningEnv:
     def submit_cleaned_data(self, agent_df):
         self.done = True
 
+        score = grade_task1(agent_df, self.clean_df, self.manifest)
+
         return {
-            "agent_output": agent_df,
-            "ground_truth": self.clean_df
+            "score": score
         }
 
 class StateManager:

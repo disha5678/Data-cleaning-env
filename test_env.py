@@ -3,12 +3,15 @@ from env.environment import DataCleaningEnv
 env = DataCleaningEnv()
 obs = env.reset()
 
-print("Initial dataset:")
-print(obs["dataset"].head())
+print("Initial shape:", obs["shape"])
 
-obs, reward, done, _ = env.step({
-    "type": "inspect_column",
-    "column": "age"
-})
+# Apply cleaning actions
+obs, r, _, _ = env.step({"type": "remove_nulls", "column": "city"})
+print("After remove_nulls:", obs["shape"], "Reward:", r)
 
-print("Reward:", reward)
+obs, r, _, _ = env.step({"type": "deduplicate"})
+print("After deduplicate:", obs["shape"], "Reward:", r)
+
+final = env.submit_cleaned_data(env.dirty_df)
+
+print("Final Score:", final["score"])
