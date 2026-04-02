@@ -6,12 +6,12 @@ df = pd.DataFrame({
     "city": ["Delhi", None, "Mumbai", None]
 })
 
-print("Original Data:")
-print(df)
+print("Initial dataset:")
+print(obs["dataset"].head())
 
-# Step 2: Apply your function
-cleaned_df = remove_nulls(df, "city")
+obs, reward, done, _ = env.step({
+    "type": "inspect_column",
+    "column": "age"
+})
 
-# Step 3: Print result
-print("\nAfter remove_nulls:")
-print(cleaned_df)
+print("Reward:", reward)
