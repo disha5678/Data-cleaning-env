@@ -1,17 +1,17 @@
-from env.environment import DataCleaningEnv
+import pandas as pd
+from env.actions import remove_nulls
 
-env = DataCleaningEnv()
-obs = env.reset()
+# Step 1: Create sample dataset
+df = pd.DataFrame({
+    "city": ["Delhi", None, "Mumbai", None]
+})
 
-print("Initial shape:", obs["shape"])
+print("Initial dataset:")
+print(obs["dataset"].head())
 
-# Apply cleaning actions
-obs, r, _, _ = env.step({"type": "remove_nulls", "column": "city"})
-print("After remove_nulls:", obs["shape"], "Reward:", r)
+obs, reward, done, _ = env.step({
+    "type": "inspect_column",
+    "column": "age"
+})
 
-obs, r, _, _ = env.step({"type": "deduplicate"})
-print("After deduplicate:", obs["shape"], "Reward:", r)
-
-final = env.submit_cleaned_data(env.dirty_df)
-
-print("Final Score:", final["score"])
+print("Reward:", reward)
