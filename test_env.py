@@ -30,4 +30,3 @@ final = env.submit_cleaned_data(env.dirty_df)
 print("Quality Score:", final["quality_score"])
 print("Steps:", final["steps"])
 print("Final Score:", final["final_score"])
-
