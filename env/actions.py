@@ -42,3 +42,8 @@ def normalize_column(df, column):
     df[column] = (col - min_val) / (max_val - min_val)
 
     return df
+def compute_correlation(df):
+    return df.corr(numeric_only=True)
+
+def drop_correlated_feature(df, col):
+    return df.drop(columns=[col])

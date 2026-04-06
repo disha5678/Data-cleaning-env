@@ -1,6 +1,6 @@
 from env.environment import DataCleaningEnv
 
-env = DataCleaningEnv()
+env = DataCleaningEnv(task=2)
 obs = env.reset()
 
 print("Initial shape:", obs["shape"])

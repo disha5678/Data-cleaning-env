@@ -1,11 +1,14 @@
 from env.data_generator import generate_clean_dataset
+from env.graders.task3_grader import grade_task3
 from env.issue_injector import inject_issues
-from env.actions import fill_nulls, remove_nulls, convert_types, deduplicate, trim_whitespace, normalize_column
+from env.actions import drop_correlated_feature, fill_nulls, remove_nulls, convert_types, deduplicate, trim_whitespace, normalize_column
 from env.graders.task1_grader import grade_task1
+from env.graders.task2_grader import grade_task2
 from env.graders.final_evaluator import compute_final_score
 class DataCleaningEnv:
 
-    def __init__(self):
+    def __init__(self,task=1):
+        self.task=task
         self.clean_df = None
         self.dirty_df = None
         self.manifest = None
@@ -31,8 +34,8 @@ class DataCleaningEnv:
         self.steps += 1
         reward = 0
         action_type = action.get("type")
-        col = action["column"]
-        null_ratio = self.dirty_df[col].isnull().mean()
+        
+        
         if action_type == "inspect_column":
            col = action["column"]
            if col not in self.inspected_cols:
@@ -42,7 +45,10 @@ class DataCleaningEnv:
              reward -= 0.02
 
         if action_type == "remove_nulls":
+            col = action["column"]
+            null_ratio = self.dirty_df[col].isnull().mean()
             if null_ratio > 0.3:
+                self.dirty_df = remove_nulls(self.dirty_df, col)
                 reward += 0.1   # good decision
             else:
                 reward -= 0.08  # bad decision 
@@ -60,7 +66,10 @@ class DataCleaningEnv:
             reward += 0.1
         
         elif action_type == "fill_nulls":
+            col = action["column"]
+            null_ratio = self.dirty_df[col].isnull().mean()
             if null_ratio < 0.3:
+                self.dirty_df = fill_nulls(self.dirty_df, col)
                 reward += 0.12  # good decision
             else:
                 reward -= 0.05
@@ -73,7 +82,9 @@ class DataCleaningEnv:
                 reward += 0.1
              else:
                 reward -= 0.08  # wrong column type    
-
+        elif action_type == "drop_correlated":
+            self.dirty_df = drop_correlated_feature(self.dirty_df, action["column"])
+            reward += 0.1
         else:
             reward -= 0.05
             
@@ -91,9 +102,18 @@ class DataCleaningEnv:
         }
 
     def submit_cleaned_data(self, agent_df):
+        
         self.done = True
 
-        quality = grade_task1(agent_df, self.clean_df, self.manifest)
+        if self.task == 1:
+            quality = grade_task1(agent_df, self.clean_df, self.manifest)
+
+        elif self.task == 2:
+            quality = grade_task2(agent_df, self.clean_df)
+
+        elif self.task == 3:
+            quality = grade_task3(agent_df, self.clean_df)
+
         final = compute_final_score(quality, self.steps)
 
         return {
