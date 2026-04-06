@@ -1,6 +1,6 @@
 from env.data_generator import generate_clean_dataset
 from env.issue_injector import inject_issues
-from env.actions import remove_nulls, convert_types, deduplicate, trim_whitespace
+from env.actions import fill_nulls, remove_nulls, convert_types, deduplicate, trim_whitespace
 from env.graders.task1_grader import grade_task1
 from env.graders.final_evaluator import compute_final_score
 class DataCleaningEnv:
@@ -31,7 +31,8 @@ class DataCleaningEnv:
         self.steps += 1
         reward = 0
         action_type = action.get("type")
-
+        col = action["column"]
+        null_ratio = self.dirty_df[col].isnull().mean()
         if action_type == "inspect_column":
            col = action["column"]
            if col not in self.inspected_cols:
@@ -40,14 +41,11 @@ class DataCleaningEnv:
            else:
              reward -= 0.02
 
-        elif action_type == "remove_nulls":
-             col = action["column"]
-
-             if col in self.manifest["nulls"]:
-                self.dirty_df = remove_nulls(self.dirty_df, col)
-                reward += 0.1
-             else:
-               reward -= 0.05
+        if action_type == "remove_nulls":
+            if null_ratio > 0.3:
+                reward += 0.1   # good decision
+            else:
+                reward -= 0.08  # bad decision 
 
         elif action_type == "convert_types":
             self.dirty_df = convert_types(self.dirty_df, action["column"])
@@ -60,7 +58,12 @@ class DataCleaningEnv:
         elif action_type == "trim_whitespace":
             self.dirty_df = trim_whitespace(self.dirty_df, action["column"])
             reward += 0.1
-
+        
+        elif action_type == "fill_nulls":
+            if null_ratio < 0.3:
+                reward += 0.12  # good decision
+            else:
+                reward -= 0.05
         else:
             reward -= 0.05
         return {
