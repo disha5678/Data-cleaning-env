@@ -29,3 +29,16 @@ def deduplicate(df):
 def trim_whitespace(df, column):
     df[column] = df[column].astype(str).str.strip()
     return df
+
+def normalize_column(df, column):
+    col = pd.to_numeric(df[column], errors='coerce')
+
+    min_val = col.min()
+    max_val = col.max()
+
+    if max_val - min_val == 0:
+        return df
+
+    df[column] = (col - min_val) / (max_val - min_val)
+
+    return df

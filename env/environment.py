@@ -1,6 +1,6 @@
 from env.data_generator import generate_clean_dataset
 from env.issue_injector import inject_issues
-from env.actions import fill_nulls, remove_nulls, convert_types, deduplicate, trim_whitespace
+from env.actions import fill_nulls, remove_nulls, convert_types, deduplicate, trim_whitespace, normalize_column
 from env.graders.task1_grader import grade_task1
 from env.graders.final_evaluator import compute_final_score
 class DataCleaningEnv:
@@ -64,8 +64,19 @@ class DataCleaningEnv:
                 reward += 0.12  # good decision
             else:
                 reward -= 0.05
+
+        elif action_type == "normalize":
+             col = action["column"]
+
+             if self.dirty_df[col].dtype != "object":
+                self.dirty_df = normalize_column(self.dirty_df, col)
+                reward += 0.1
+             else:
+                reward -= 0.08  # wrong column type    
+
         else:
             reward -= 0.05
+            
         return {
             "dataset": self.dirty_df.to_dict(),
             "shape": self.dirty_df.shape,
