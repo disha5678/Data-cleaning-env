@@ -40,6 +40,7 @@ def normalize_column(df, column):
         return df
 
     df[column] = (col - min_val) / (max_val - min_val)
+    df[column] = df[column].fillna(0)  # optional safety
 
     return df
 def compute_correlation(df):

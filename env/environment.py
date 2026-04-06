@@ -1,9 +1,9 @@
 from env.data_generator import generate_clean_dataset
-from env.graders.task3_grader import grade_task3
 from env.issue_injector import inject_issues
 from env.actions import drop_correlated_feature, fill_nulls, remove_nulls, convert_types, deduplicate, trim_whitespace, normalize_column
 from env.graders.task1_grader import grade_task1
 from env.graders.task2_grader import grade_task2
+from env.graders.task3_grader import grade_task3
 from env.graders.final_evaluator import compute_final_score
 class DataCleaningEnv:
 
@@ -16,6 +16,9 @@ class DataCleaningEnv:
         self.done=False
         self.inspected_cols=set()
 
+    def safe_df(self,df):
+         return df.replace({float("nan"): None})
+    
     def reset(self):
         self.clean_df = generate_clean_dataset()
         self.dirty_df, self.manifest = inject_issues(self.clean_df)
@@ -25,8 +28,8 @@ class DataCleaningEnv:
         self.inspected_cols = set()
 
         return {
-            "dataset": self.dirty_df.to_dict(),
-            "shape": self.dirty_df.shape,
+            "dataset": self.safe_df(self.dirty_df).to_dict(),
+            "shape": list(self.dirty_df.shape),
             "steps": self.steps
         }
 
@@ -89,8 +92,8 @@ class DataCleaningEnv:
             reward -= 0.05
             
         return {
-            "dataset": self.dirty_df.to_dict(),
-            "shape": self.dirty_df.shape,
+            "dataset": self.safe_df(self.dirty_df).to_dict(),
+            "shape":  list(self.dirty_df.shape),
             "steps": self.steps
         }, reward, self.done, {}
 

@@ -1,7 +1,7 @@
 from env.environment import DataCleaningEnv
 
 # 🔥 choose task here
-env = DataCleaningEnv(task=2)
+env = DataCleaningEnv(task=3)
 
 obs = env.reset()
 
