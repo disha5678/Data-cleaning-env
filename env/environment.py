@@ -2,6 +2,7 @@ from env.data_generator import generate_clean_dataset
 from env.issue_injector import inject_issues
 from env.actions import remove_nulls, convert_types, deduplicate, trim_whitespace
 from env.graders.task1_grader import grade_task1
+from env.graders.final_evaluator import compute_final_score
 class DataCleaningEnv:
 
     def __init__(self):
@@ -31,9 +32,22 @@ class DataCleaningEnv:
         reward = 0
         action_type = action.get("type")
 
-        if action_type == "remove_nulls":
-            self.dirty_df = remove_nulls(self.dirty_df, action["column"])
-            reward += 0.1
+        if action_type == "inspect_column":
+           col = action["column"]
+           if col not in self.inspected_cols:
+              self.inspected_cols.add(col)
+              reward += 0.01
+           else:
+             reward -= 0.02
+
+        elif action_type == "remove_nulls":
+             col = action["column"]
+
+             if col in self.manifest["nulls"]:
+                self.dirty_df = remove_nulls(self.dirty_df, col)
+                reward += 0.1
+             else:
+               reward -= 0.05
 
         elif action_type == "convert_types":
             self.dirty_df = convert_types(self.dirty_df, action["column"])
@@ -65,10 +79,13 @@ class DataCleaningEnv:
     def submit_cleaned_data(self, agent_df):
         self.done = True
 
-        score = grade_task1(agent_df, self.clean_df, self.manifest)
+        quality = grade_task1(agent_df, self.clean_df, self.manifest)
+        final = compute_final_score(quality, self.steps)
 
         return {
-            "score": score
+            "quality_score": quality,
+            "steps": self.steps,
+            "final_score": final
         }
 
 class StateManager:
