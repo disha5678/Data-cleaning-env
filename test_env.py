@@ -5,12 +5,22 @@ obs = env.reset()
 
 print("Initial shape:", obs["shape"])
 
+obs, r, _, _ = env.step({
+    "type": "fill_nulls",
+    "column": list(obs["dataset"].keys())[0],  # just testing
+    "strategy": "mean"
+})
+print("After fill_nulls:", obs["shape"], "Reward:", r)
 # Apply cleaning actions
 obs, r, _, _ = env.step({"type": "remove_nulls", "column": "city"})
 print("After remove_nulls:", obs["shape"], "Reward:", r)
 
 obs, r, _, _ = env.step({"type": "deduplicate"})
 print("After deduplicate:", obs["shape"], "Reward:", r)
+
+
+
+
 
 final = env.submit_cleaned_data(env.dirty_df)
 
