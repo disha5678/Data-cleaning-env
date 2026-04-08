@@ -1,144 +1,155 @@
-import asyncio
 import os
-import textwrap
-from typing import List, Optional
-
+import pandas as pd
 from openai import OpenAI
-
 from env.environment import DataCleaningEnv
-IMAGE_NAME = os.getenv("IMAGE_NAME") # If you are using docker image 
-API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
 
-API_BASE_URL = os.getenv("API_BASE_URL") or "https://router.huggingface.co/v1"
-MODEL_NAME = os.getenv("MODEL_NAME") or "Qwen/Qwen2.5-72B-Instruct"
-TASK_NAME = os.getenv("MY_ENV_V4_TASK", "echo")
-BENCHMARK = os.getenv("MY_ENV_V4_BENCHMARK", "my_env_v4")
-MAX_STEPS = 8
-TEMPERATURE = 0.7
-MAX_TOKENS = 150
-SUCCESS_SCORE_THRESHOLD = 0.1  # normalized score in [0, 1]
+# ------------------ ENV VARIABLES ------------------
+API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
+MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
+HF_TOKEN = os.getenv("HF_TOKEN")
 
-# Max possible reward: each token contributes 0.1, across all steps
-_MAX_REWARD_PER_STEP = MAX_TOKENS * 0.1
-MAX_TOTAL_REWARD = MAX_STEPS * _MAX_REWARD_PER_STEP
+if HF_TOKEN is None:
+    raise ValueError("HF_TOKEN environment variable is required")
 
-SYSTEM_PROMPT = textwrap.dedent(
-    """
-    You are interacting with a simple echo environment.
-    Each turn you must send a message. The environment will echo it back.
-    Reward is proportional to message length: reward = len(message) * 0.1
-    Your goal is to maximize total reward by sending meaningful, substantive messages.
-    Reply with exactly one message string — no quotes, no prefixes, just the message text.
-    """
-).strip()
+# ------------------ OPENAI CLIENT ------------------
+client = OpenAI(
+    base_url=API_BASE_URL,
+    api_key=HF_TOKEN
+)
 
+MAX_STEPS = 6
 
-def log_start(task: str, env: str, model: str) -> None:
-    print(f"[START] task={task} env={env} model={model}", flush=True)
+# ------------------ LOGGING ------------------
+def log_start(task, env, model):
+    print(f"[START] task={task} env={env} model={model}")
 
-
-def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str]) -> None:
+def log_step(step, action, reward, done, error):
     error_val = error if error else "null"
-    done_val = str(done).lower()
-    print(
-        f"[STEP] step={step} action={action} reward={reward:.2f} done={done_val} error={error_val}",
-        flush=True,
+    print(f"[STEP] step={step} action={action} reward={reward:.2f} done={str(done).lower()} error={error_val}")
+
+def log_end(success, steps, score, rewards):
+    rewards_str = ",".join(f"{r:.2f}" for r in rewards)
+    print(f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}")
+
+# ------------------ LLM DECISION ------------------
+def get_action_from_llm(dataset,history):
+    prompt = f"""
+You are an intelligent data cleaning agent.
+
+Your goal is to clean the dataset completely.
+
+You can use the following actions:
+- fill_nulls
+- remove_nulls
+- deduplicate
+- convert_types
+- trim_whitespace
+- normalize
+
+Previous actions:
+{history}
+
+Rules:
+1. You can choose ANY action.
+2. You can choose ANY column.
+3. You can repeat actions if needed.
+4. You should decide based on dataset issues.
+5. Your goal is to maximize data quality.
+6. Stop only when dataset is clean.
+7. Prefer fixing critical issues first (nulls, duplicates, types)
+8. Avoid repeating same action unnecessarily
+9.Base your decision ONLY on dataset statistics.
+10.Choose different actions depending on issues.
+
+Dataset:
+{dataset}
+
+Return ONLY ONE action in this format:
+action_type,column_name
+
+Examples:
+fill_nulls,city
+deduplicate,customer_id
+convert_types,age
+normalize,income
+
+Do NOT explain anything.
+Only return the action.
+"""
+
+    response = client.chat.completions.create(
+        model=MODEL_NAME,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3,
+        max_tokens=50
     )
 
+    output = response.choices[0].message.content.strip()
 
-def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
-    rewards_str = ",".join(f"{r:.2f}" for r in rewards)
-    print(f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}", flush=True)
-
-
-def build_user_prompt(step: int, last_echoed: str, last_reward: float, history: List[str]) -> str:
-    history_block = "\n".join(history[-4:]) if history else "None"
-    return textwrap.dedent(
-        f"""
-        Step: {step}
-        Last echoed message: {last_echoed!r}
-        Last reward: {last_reward:.2f}
-        Previous steps:
-        {history_block}
-        Send your next message.
-        """
-    ).strip()
-
-
-def get_model_message(client: OpenAI, step: int, last_echoed: str, last_reward: float, history: List[str]) -> str:
-    user_prompt = build_user_prompt(step, last_echoed, last_reward, history)
     try:
-        completion = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=TEMPERATURE,
-            max_tokens=MAX_TOKENS,
-            stream=False,
-        )
-        text = (completion.choices[0].message.content or "").strip()
-        return text if text else "hello"
-    except Exception as exc:
-        print(f"[DEBUG] Model request failed: {exc}", flush=True)
-        return "hello"
+        action_type, column = output.split(",")
+        return {"type": action_type.strip(), "column": column.strip()}
+    except:
+        return {"type": "fill_nulls", "column": "city"}  # fallback
 
+# ------------------ MAIN ------------------
+def main():
+    env = DataCleaningEnv(task=1)
+    obs = env.reset()
 
-async def main() -> None:
-    client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
-
-    env = await DataCleaningEnv.from_docker_image(IMAGE_NAME)
-
-    history: List[str] = []
-    rewards: List[float] = []
+    rewards = []
     steps_taken = 0
-    score = 0.0
-    success = False
+    history = []
 
-    log_start(task=TASK_NAME, env=BENCHMARK, model=MODEL_NAME)
+    log_start("task1", "data_cleaning", MODEL_NAME)
 
-    try:
-        result = await env.reset() # OpenENV.reset()
-        last_echoed = result.observation.echoed_message
-        last_reward = 0.0
+    for step in range(1, MAX_STEPS + 1):
 
-        for step in range(1, MAX_STEPS + 1):
-            if result.done:
-                break
+        df = pd.DataFrame(obs["dataset"])
+        col_info = {}
 
-            message = get_model_message(client, step, last_echoed, last_reward, history)
+        for col in df.columns:
+            col_info[col] = {
+                "nulls": float(df[col].isnull().mean()),
+                "dtype": str(df[col].dtype),
+                "unique": int(df[col].nunique())
+            }
 
-            result = await env.step(MyEnvV4Action(message=message))
-            obs = result.observation
+        summary = f"""
+        Columns: {list(df.columns)}
 
-            reward = result.reward or 0.0
-            done = result.done
-            error = None
+        Column Info:
+        {col_info}
 
-            rewards.append(reward)
-            steps_taken = step
-            last_echoed = obs.echoed_message
-            last_reward = reward
+        Duplicates: {df.duplicated().sum()}
 
-            log_step(step=step, action=message, reward=reward, done=done, error=error)
+        Sample Data:
+        {df.head(3).to_dict()}
+        """
+        action = get_action_from_llm(summary, history)
 
-            history.append(f"Step {step}: {message!r} -> reward {reward:+.2f}")
+        # check BEFORE adding
+        if str(action) in history:
+            action = {"type": "deduplicate", "column": "customer_id"}
 
-            if done:
-                break
+        history.append(str(action))
 
-        score = sum(rewards) / MAX_TOTAL_REWARD if MAX_TOTAL_REWARD > 0 else 0.0
-        score = min(max(score, 0.0), 1.0)  # clamp to [0, 1]
-        success = score >= SUCCESS_SCORE_THRESHOLD
+        obs, reward, done, _ = env.step(action)
 
-    finally:
-        try:
-            await env.close()
-        except Exception as e:
-            print(f"[DEBUG] env.close() error (container cleanup): {e}", flush=True)
-        log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
+        rewards.append(reward)
+        steps_taken = step
 
+        log_step(step, str(action), reward, done, None)
+
+        if done:
+            break
+
+    final = env.submit_cleaned_data(env.dirty_df)
+    score = final["final_score"]
+
+    success = score > 0.3
+
+    log_end(success, steps_taken, score, rewards)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
