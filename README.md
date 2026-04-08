@@ -283,4 +283,5 @@ This project demonstrates:
 
 ## 👩‍💻 Authors
 
-- Hackathon Team
+- Tanushree Gupta
+- Disha Singla
