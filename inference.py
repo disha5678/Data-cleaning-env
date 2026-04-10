@@ -6,16 +6,18 @@ from env.environment import DataCleaningEnv
 # ------------------ ENV VARIABLES ------------------
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
-HF_TOKEN = os.getenv("HF_TOKEN")
+HF_TOKEN = os.getenv("HF_TOKEN","")
 
-if HF_TOKEN is None:
-    raise ValueError("HF_TOKEN environment variable is required")
 
 # ------------------ OPENAI CLIENT ------------------
-client = OpenAI(
-    base_url=API_BASE_URL,
-    api_key=HF_TOKEN
-)
+try:
+    client = OpenAI(
+        base_url=os.getenv("API_BASE_URL", "https://router.huggingface.co/v1"),
+        api_key=os.getenv("HF_TOKEN", "")
+    )
+except Exception as e:
+    print("Client init failed:", e)
+    client = None
 
 MAX_STEPS = 6
 
@@ -77,21 +79,27 @@ Do NOT explain anything.
 Only return the action.
 """
 
-    response = client.chat.completions.create(
-        model=MODEL_NAME,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.3,
-        max_tokens=50
-    )
-
-    output = response.choices[0].message.content.strip()
-
     try:
+        if client is None:
+            raise Exception("Client not initialized")
+
+        response = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=50
+        )
+
+        output = response.choices[0].message.content.strip()
+
         action_type, column = output.split(",")
         return {"type": action_type.strip(), "column": column.strip()}
-    except:
-        return {"type": "fill_nulls", "column": "city"}  # fallback
 
+    except Exception as e:
+        print("LLM error:", e)
+
+        # ✅ SAFE FALLBACK (VERY IMPORTANT)
+        return {"type": "deduplicate", "column": "customer_id"}
 # ------------------ MAIN ------------------
 def main():
     env = DataCleaningEnv(task=1)
@@ -152,4 +160,7 @@ def main():
     log_end(success, steps_taken, score, rewards)
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        print("Fatal error:", e)

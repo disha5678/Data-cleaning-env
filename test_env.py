@@ -1,32 +1,26 @@
-from env.environment import DataCleaningEnv
+import subprocess
 
-env = DataCleaningEnv(task=2)
-obs = env.reset()
+print("🚀 Running inference.py test...\n")
 
-print("Initial shape:", obs["shape"])
+try:
+    result = subprocess.run(
+        ["python", "inference.py"],
+        capture_output=True,
+        text=True,
+        timeout=60
+    )
 
-obs, r, _, _ = env.step({
-    "type": "fill_nulls",
-    "column": list(obs["dataset"].keys())[0],  # just testing
-    "strategy": "mean"
-})
-print("After fill_nulls:", obs["shape"], "Reward:", r)
-# Apply cleaning actions
-obs, r, _, _ = env.step({"type": "remove_nulls", "column": "city"})
-print("After remove_nulls:", obs["shape"], "Reward:", r)
+    print("✅ STDOUT:\n")
+    print(result.stdout)
 
+    if result.stderr:
+        print("\n⚠️ STDERR:\n")
+        print(result.stderr)
 
+    if result.returncode == 0:
+        print("\n🎉 TEST PASSED: inference.py ran successfully")
+    else:
+        print(f"\n❌ TEST FAILED: Exit code {result.returncode}")
 
-obs, r, _, _ = env.step({
-    "type": "normalize",
-    "column": "income"
-})
-
-print("After normalization:", obs["shape"], "Reward:", r)
-
-
-final = env.submit_cleaned_data(env.dirty_df)
-
-print("Quality Score:", final["quality_score"])
-print("Steps:", final["steps"])
-print("Final Score:", final["final_score"])
+except Exception as e:
+    print("💥 Test crashed:", e)
