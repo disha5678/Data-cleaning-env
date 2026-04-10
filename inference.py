@@ -4,16 +4,16 @@ from openai import OpenAI
 from env.environment import DataCleaningEnv
 
 # ------------------ ENV VARIABLES ------------------
-API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
+
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
-HF_TOKEN = os.getenv("HF_TOKEN","")
+
 
 
 # ------------------ OPENAI CLIENT ------------------
 try:
     client = OpenAI(
-        base_url=os.getenv("API_BASE_URL", "https://router.huggingface.co/v1"),
-        api_key=os.getenv("HF_TOKEN", "")
+         base_url=os.environ["API_BASE_URL"],
+        api_key=os.environ["API_KEY"]
     )
 except Exception as e:
     print("Client init failed:", e)
